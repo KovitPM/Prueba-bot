@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   const ESPACIO_SOPORTE_ID = process.env.WEBEX_SUPPORT_ROOM_ID;
 
   try {
-    // 1. EVENTO: El usuario le escribió al Bot en chat privado
+    // 1. EVENTO: El usuario le escribió al Bot
     if (resource === 'messages' && event === 'created') {
       const senderEmail = data.personEmail;
 
@@ -77,18 +77,16 @@ export default async function handler(req, res) {
 
     // 2. EVENTO: Un técnico presionó "Tomar Ticket"
     if (resource === 'attachmentActions' && event === 'created') {
-      // Obtener detalles de la acción
       const actionRes = await fetch(`https://webexapis.com/v1/attachment/actions/${data.id}`, {
         headers: { Authorization: `Bearer ${WEBEX_TOKEN}` }
       });
       const actionData = await actionRes.json();
 
-      const tecnicoEmail = actionData.personId 
-        ? await getEmailPersona(actionData.personId, WEBEX_TOKEN) 
-        : 'Un técnico';
       const usuarioReporta = actionData.inputs?.usuarioReporta || 'Usuario';
+      // Webex envía el email del técnico directamente en la acción si está disponible
+      const tecnicoEmail = actionData.personEmail || 'Un técnico';
 
-      // 1. Borrar el mensaje original de la tarjeta con el botón
+      // 1. Eliminar la tarjeta inicial con el botón
       if (data.messageId) {
         await fetch(`https://webexapis.com/v1/messages/${data.messageId}`, {
           method: 'DELETE',
@@ -96,7 +94,7 @@ export default async function handler(req, res) {
         }).catch(() => {});
       }
 
-      // 2. Publicar la tarjeta de confirmación de asignación
+      // 2. Publicar la tarjeta de asignación confirmada (incluye campo markdown obligatorio)
       await fetch('https://webexapis.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -105,6 +103,7 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({
           roomId: ESPACIO_SOPORTE_ID,
+          markdown: `✅ Incidencia de ${usuarioReporta} asignada a ${tecnicoEmail}`,
           attachments: [
             {
               contentType: 'application/vnd.microsoft.card.adaptive',
@@ -143,17 +142,5 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Error procesando webhook:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
-  }
-}
-
-async function getEmailPersona(personId, token) {
-  try {
-    const res = await fetch(`https://webexapis.com/v1/people/${personId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const data = await res.json();
-    return data.emails?.[0] || 'Un técnico';
-  } catch {
-    return 'Un técnico';
   }
 }
