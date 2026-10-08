@@ -8,23 +8,20 @@ export default async function handler(req, res) {
   const ESPACIO_SOPORTE_ID = process.env.WEBEX_SUPPORT_ROOM_ID;
 
   try {
-    // 1. EVENTO: El usuario le escribió al Bot
+    // 1. EVENTO: El usuario le escribió al Bot en chat privado
     if (resource === 'messages' && event === 'created') {
       const senderEmail = data.personEmail;
 
-      // Ignorar mensajes generados por bots para evitar bucles
       if (senderEmail && senderEmail.endsWith('@webex.bot')) {
         return res.status(200).json({ status: 'ignored_bot' });
       }
 
-      // Obtener el texto del mensaje desde la API de Webex
       const msgRes = await fetch(`https://webexapis.com/v1/messages/${data.id}`, {
         headers: { Authorization: `Bearer ${WEBEX_TOKEN}` }
       });
       const msgData = await msgRes.json();
       const textoIncidencia = msgData.text || 'Sin detalle provisto';
 
-      // Enviar la tarjeta interactiva al espacio de soporte técnico
       await fetch('https://webexapis.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -74,23 +71,34 @@ export default async function handler(req, res) {
           ]
         })
       });
+
+      return res.status(200).json({ status: 'ticket_created' });
     }
 
     // 2. EVENTO: Un técnico presionó "Tomar Ticket"
     if (resource === 'attachmentActions' && event === 'created') {
-      // Consultar quién presionó el botón
+      // Obtener detalles de la acción
       const actionRes = await fetch(`https://webexapis.com/v1/attachment/actions/${data.id}`, {
         headers: { Authorization: `Bearer ${WEBEX_TOKEN}` }
       });
       const actionData = await actionRes.json();
 
-      // Obtener el email del técnico desde el objeto de la acción o la persona
-      const tecnicoEmail = actionData.personId ? await getEmailPersona(actionData.personId, WEBEX_TOKEN) : 'Un técnico';
+      const tecnicoEmail = actionData.personId 
+        ? await getEmailPersona(actionData.personId, WEBEX_TOKEN) 
+        : 'Un técnico';
       const usuarioReporta = actionData.inputs?.usuarioReporta || 'Usuario';
 
-      // Actualizar el mensaje original quitando el botón y marcándolo como asignado
-      await fetch(`https://webexapis.com/v1/messages/${data.messageId}`, {
-        method: 'PUT',
+      // 1. Borrar el mensaje original de la tarjeta con el botón
+      if (data.messageId) {
+        await fetch(`https://webexapis.com/v1/messages/${data.messageId}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${WEBEX_TOKEN}` }
+        }).catch(() => {});
+      }
+
+      // 2. Publicar la tarjeta de confirmación de asignación
+      await fetch('https://webexapis.com/v1/messages', {
+        method: 'POST',
         headers: {
           Authorization: `Bearer ${WEBEX_TOKEN}`,
           'Content-Type': 'application/json'
@@ -127,16 +135,17 @@ export default async function handler(req, res) {
           ]
         })
       });
+
+      return res.status(200).json({ status: 'ticket_assigned' });
     }
 
-    return res.status(200).json({ status: 'success' });
+    return res.status(200).json({ status: 'ok' });
   } catch (error) {
     console.error('Error procesando webhook:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 }
 
-// Función auxiliar para obtener el correo del técnico
 async function getEmailPersona(personId, token) {
   try {
     const res = await fetch(`https://webexapis.com/v1/people/${personId}`, {
