@@ -137,7 +137,7 @@ export default async function handler(req, res) {
                   type: 'AdaptiveCard',
                   version: '1.2',
                   body: [
-                    { type: 'TextBlock', text: `⏳ Ticket #${folio} En Proceso`, weight: 'Bolder', size: 'Medium', color: 'Warning' },
+                    { type: 'TextBlock', text: `⏳ Ticket #${folio} En Proceso`, weight: 'Bolder', size: 'Medium', color: 'Warning', wrap: true },
                     { type: 'TextBlock', text: `**USUARIO:** ${usuarioReporta}` },
                     { type: 'TextBlock', text: `**FALLA REPORTADA:** ${fallaReportada}`, wrap: true },
                     { type: 'TextBlock', text: `**DIAGNOSTICO:** ${textoDiagnostico}`, wrap: true },
@@ -222,7 +222,7 @@ export default async function handler(req, res) {
                   type: 'AdaptiveCard',
                   version: '1.2',
                   body: [
-                    { type: 'TextBlock', text: `⏳ Ticket #${folio} Atendido (Esperando Confirmación)`, weight: 'Bolder', size: 'Medium', color: 'Warning' },
+                    { type: 'TextBlock', text: `⏳ Ticket #${folio} Atendido (Esperando Confirmación)`, weight: 'Bolder', size: 'Medium', color: 'Warning', wrap: true },
                     { type: 'TextBlock', text: `**USUARIO:** ${usuarioReporta}` },
                     { type: 'TextBlock', text: `**DIAGNOSTICO:** ${diagnosticoPrevio}` },
                     { type: 'TextBlock', text: `**CORRECCIÓN:** ${textoCorreccion}`, wrap: true },
@@ -398,7 +398,7 @@ export default async function handler(req, res) {
                   type: 'AdaptiveCard',
                   version: '1.2',
                   body: [
-                    { type: 'TextBlock', text: `⚠️ Ticket #${folio} Reabierto`, weight: 'Bolder', size: 'Medium', color: 'Attention' },
+                    { type: 'TextBlock', text: `⚠️ Ticket #${folio} Reabierto`, weight: 'Bolder', size: 'Medium', color: 'Attention', wrap: true },
                     { type: 'TextBlock', text: `**USUARIO:** ${usuarioReporta}` },
                     { type: 'TextBlock', text: `**FALLA REPORTADA:** ${fallaReportada}` },
                     { type: 'TextBlock', text: `*El usuario indicó que NO se resolvió el problema.*` },
