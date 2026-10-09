@@ -141,7 +141,7 @@ export default async function handler(req, res) {
                     { type: 'TextBlock', text: `**USUARIO:** ${usuarioReporta}` },
                     { type: 'TextBlock', text: `**FALLA REPORTADA:** ${fallaReportada}`, wrap: true },
                     { type: 'TextBlock', text: `**DIAGNOSTICO:** ${textoDiagnostico}`, wrap: true },
-                    { type: 'TextBlock', text: `**FECHA / RESPONSABLE:** ${fechaAccion} / ${tecnicoEmail}`, weight: 'Bolder' },
+                    { type: 'TextBlock', text: `**FECHA / RESPONSABLE:** ${fechaAccion} / ${tecnicoEmail}`, weight: 'Bolder', wrap: true },
                     { type: 'Input.Text', id: 'inputCorreccion', placeholder: 'Escribe la solución realizada...', isMultiline: true }
                   ],
                   actions: [
@@ -226,7 +226,7 @@ export default async function handler(req, res) {
                     { type: 'TextBlock', text: `**USUARIO:** ${usuarioReporta}` },
                     { type: 'TextBlock', text: `**DIAGNOSTICO:** ${diagnosticoPrevio}` },
                     { type: 'TextBlock', text: `**CORRECCIÓN:** ${textoCorreccion}`, wrap: true },
-                    { type: 'TextBlock', text: `**FECHA / RESPONSABLE:** ${fechaAccion} / ${tecnicoEmail}`, weight: 'Bolder' }
+                    { type: 'TextBlock', text: `**FECHA / RESPONSABLE:** ${fechaAccion} / ${tecnicoEmail}`, weight: 'Bolder', wrap: true }
                   ]
                 }
               }
