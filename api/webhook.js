@@ -320,7 +320,7 @@ export default async function handler(req, res) {
           headers: { Authorization: `Bearer ${WEBEX_TOKEN}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             toPersonEmail: usuarioReporta,
-            markdown: `🎉 **Ticket #${folio} Resuelto Definitivamente**\n\nGracias por confirmar. El ticket ha sido cerrado con éxito.`
+            markdown: `🎉 **Ticket #${folio} Resuelto**\n\nGracias por confirmar. El ticket ha sido cerrado con éxito.`
           })
         }).catch(() => {});
 
