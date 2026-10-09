@@ -213,7 +213,7 @@ export default async function handler(req, res) {
           },
           body: JSON.stringify({
             roomId: ESPACIO_SOPORTE_ID,
-            markdown: `⏳ Ticket #${folio} en espera de confirmación del usuario`,
+            markdown: `⏳ Ticket #${folio} en espera de confirmación del usuario`, wrap: true,
             attachments: [
               {
                 contentType: 'application/vnd.microsoft.card.adaptive',
