@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   const GOOGLE_SHEET_URL = process.env.GOOGLE_SHEET_WEBHOOK_URL;
 
   try {
-    // 1. CREAR TICKET (MENSAJE DEL USUARIO)
+    // 1. CREAR TICKET (CUANDO EL USUARIO ESCRIBE AL BOT)
     if (resource === 'messages' && event === 'created') {
       const senderEmail = data.personEmail;
 
@@ -24,7 +24,6 @@ export default async function handler(req, res) {
       const textoIncidencia = msgData.text || 'Sin detalle provisto';
       const fechaActual = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
 
-      // Guardar primero en Google Sheets para obtener el Folio (26-TIC0001)
       let folioGenerado = 'PDS-TICKET';
       if (GOOGLE_SHEET_URL) {
         try {
@@ -35,18 +34,16 @@ export default async function handler(req, res) {
               action: 'crear_ticket',
               fechaReporte: fechaActual,
               fallaReportada: textoIncidencia,
-              usuario: senderEmail,
-              messageId: data.id
+              usuario: senderEmail
             })
           });
           const sheetData = await sheetRes.json();
           if (sheetData.folio) folioGenerado = sheetData.folio;
         } catch (e) {
-          console.error('Error registrando en Google Sheets:', e);
+          console.error('Error enviando a Google Sheets:', e);
         }
       }
 
-      // Enviar tarjeta al espacio de soporte técnico con el Folio
       await fetch('https://webexapis.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -92,7 +89,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ status: 'ticket_created' });
     }
 
-    // 2. ACCIONES DE BOTONES (TOMAR / RESOLVER)
+    // 2. ACCIONES DE LAS TARJETAS (SUBMIT)
     if (resource === 'attachmentActions' && event === 'created') {
       const actionRes = await fetch(`https://webexapis.com/v1/attachment/actions/${data.id}`, {
         headers: { Authorization: `Bearer ${WEBEX_TOKEN}` }
@@ -112,7 +109,7 @@ export default async function handler(req, res) {
 
       const fechaAccion = new Date().toLocaleString('es-MX', { timeZone: 'America/Mexico_City' });
 
-      // CASO A: EL TÉCNICO TOMA EL TICKET Y REGISTRA DIAGNÓSTICO
+      // CASO A: EL TÉCNICO TOMA EL TICKET (SIN ENVIAR DIAGNÓSTICO AL USUARIO)
       if (actionType === 'tomar_ticket') {
         const textoDiagnostico = inputs.inputDiagnostico || 'En revisión por técnico';
 
@@ -169,13 +166,14 @@ export default async function handler(req, res) {
           })
         });
 
+        // Notificar al usuario (solo que fue asignado)
         if (usuarioReporta) {
           await fetch('https://webexapis.com/v1/messages', {
             method: 'POST',
             headers: { Authorization: `Bearer ${WEBEX_TOKEN}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
               toPersonEmail: usuarioReporta,
-              markdown: `🙋‍♂️ **Ticket #${folio} Asignado**\n\nEl técnico **${tecnicoEmail}** atenderá tu caso.\n**Diagnóstico inicial:** ${textoDiagnostico}`
+              markdown: `🙋‍♂️ **Ticket #${folio} Asignado**\n\nEl técnico **${tecnicoEmail}** ha tomado tu caso y se pondrá en contacto contigo.`
             })
           }).catch(() => {});
         }
@@ -187,7 +185,6 @@ export default async function handler(req, res) {
             body: JSON.stringify({
               action: 'tomar_ticket',
               folio: folio,
-              messageId: data.messageId,
               diagnostico: textoDiagnostico,
               fecha: fechaAccion,
               tecnico: tecnicoEmail
@@ -196,7 +193,7 @@ export default async function handler(req, res) {
         }
       }
 
-      // CASO B: EL TÉCNICO RESUELVE EL TICKET Y REGISTRA CORRECCIÓN
+      // CASO B: EL TÉCNICO RESUELVE EL TICKET -> ENVÍA TARJETA INTERACTIVA DE CONFIRMACIÓN AL USUARIO
       if (actionType === 'resolver_ticket') {
         const textoCorreccion = inputs.inputCorreccion || 'Problema corregido';
         const diagnosticoPrevio = inputs.diagnosticoPrevio || '';
@@ -216,7 +213,7 @@ export default async function handler(req, res) {
           },
           body: JSON.stringify({
             roomId: ESPACIO_SOPORTE_ID,
-            markdown: `🎉 Ticket #${folio} RESUELTO por ${tecnicoEmail}`,
+            markdown: `⏳ Ticket #${folio} en espera de confirmación del usuario`,
             attachments: [
               {
                 contentType: 'application/vnd.microsoft.card.adaptive',
@@ -225,7 +222,7 @@ export default async function handler(req, res) {
                   type: 'AdaptiveCard',
                   version: '1.2',
                   body: [
-                    { type: 'TextBlock', text: `🎉 Ticket #${folio} Resuelto`, weight: 'Bolder', size: 'Medium', color: 'Good' },
+                    { type: 'TextBlock', text: `⏳ Ticket #${folio} Atendido (Esperando Confirmación)`, weight: 'Bolder', size: 'Medium', color: 'Warning' },
                     { type: 'TextBlock', text: `**USUARIO:** ${usuarioReporta}` },
                     { type: 'TextBlock', text: `**DIAGNOSTICO:** ${diagnosticoPrevio}` },
                     { type: 'TextBlock', text: `**CORRECCIÓN:** ${textoCorreccion}`, wrap: true },
@@ -237,13 +234,53 @@ export default async function handler(req, res) {
           })
         });
 
+        // Enviar tarjeta interactiva al usuario con los 2 botones de confirmación
         if (usuarioReporta) {
           await fetch('https://webexapis.com/v1/messages', {
             method: 'POST',
             headers: { Authorization: `Bearer ${WEBEX_TOKEN}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
               toPersonEmail: usuarioReporta,
-              markdown: `✅ **Ticket #${folio} Resuelto**\n\nEl técnico **${tecnicoEmail}** ha resuelto tu reporte.\n**Solución aplicada:** ${textoCorreccion}`
+              markdown: `¿Se solucionó el problema del Ticket #${folio}?`,
+              attachments: [
+                {
+                  contentType: 'application/vnd.microsoft.card.adaptive',
+                  content: {
+                    $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+                    type: 'AdaptiveCard',
+                    version: '1.2',
+                    body: [
+                      { type: 'TextBlock', text: `❓ Confirmación de Ticket #${folio}`, weight: 'Bolder', size: 'Medium' },
+                      { type: 'TextBlock', text: `El técnico **${tecnicoEmail}** indicó la siguiente solución:\n\n*${textoCorreccion}*` },
+                      { type: 'TextBlock', text: '¿Confirmas que el problema quedó resuelto?' }
+                    ],
+                    actions: [
+                      {
+                        type: 'Action.Submit',
+                        title: '👍 Sí, quedó resuelto',
+                        data: {
+                          action: 'confirmar_usuario',
+                          folio: folio,
+                          usuarioReporta: usuarioReporta,
+                          tecnicoEmail: tecnicoEmail,
+                          textoCorreccion: textoCorreccion
+                        }
+                      },
+                      {
+                        type: 'Action.Submit',
+                        title: '👎 No, sigo con la falla',
+                        data: {
+                          action: 'rechazar_usuario',
+                          folio: folio,
+                          usuarioReporta: usuarioReporta,
+                          tecnicoEmail: tecnicoEmail,
+                          fallaReportada: fallaReportada
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
             })
           }).catch(() => {});
         }
@@ -255,10 +292,139 @@ export default async function handler(req, res) {
             body: JSON.stringify({
               action: 'resolver_ticket',
               folio: folio,
-              messageId: data.messageId,
               correccion: textoCorreccion,
               fecha: fechaAccion,
               tecnico: tecnicoEmail
+            })
+          }).catch(() => {});
+        }
+      }
+
+      // CASO C: EL USUARIO CONFIRMA ("SÍ, QUEDÓ RESUELTO")
+      if (actionType === 'confirmar_usuario') {
+        // Elimina la tarjeta de confirmación enviada al usuario
+        if (data.messageId) {
+          await fetch(`https://webexapis.com/v1/messages/${data.messageId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${WEBEX_TOKEN}` }
+          }).catch(() => {});
+        }
+
+        // Mensaje privado final al usuario
+        await fetch('https://webexapis.com/v1/messages', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${WEBEX_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toPersonEmail: usuarioReporta,
+            markdown: `🎉 **Ticket #${folio} Resuelto Definitivamente**\n\nGracias por confirmar. El ticket ha sido cerrado con éxito.`
+          })
+        }).catch(() => {});
+
+        // Actualizar tarjeta en el Espacio de Soporte a VERDE (Resuelto y Confirmado)
+        await fetch('https://webexapis.com/v1/messages', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${WEBEX_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomId: ESPACIO_SOPORTE_ID,
+            markdown: `🎉 Ticket #${folio} RESUELTO Y CONFIRMADO POR USUARIO`,
+            attachments: [
+              {
+                contentType: 'application/vnd.microsoft.card.adaptive',
+                content: {
+                  $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+                  type: 'AdaptiveCard',
+                  version: '1.2',
+                  body: [
+                    { type: 'TextBlock', text: `🎉 Ticket #${folio} Resuelto y Confirmado`, weight: 'Bolder', size: 'Medium', color: 'Good' },
+                    { type: 'TextBlock', text: `**USUARIO:** ${usuarioReporta}` },
+                    { type: 'TextBlock', text: `**ESTADO:** Confirmado por el usuario (${fechaAccion})` }
+                  ]
+                }
+              }
+            ]
+          })
+        });
+
+        if (GOOGLE_SHEET_URL) {
+          await fetch(GOOGLE_SHEET_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'confirmar_usuario',
+              folio: folio,
+              fecha: fechaAccion
+            })
+          }).catch(() => {});
+        }
+      }
+
+      // CASO D: EL USUARIO RECHAZA ("NO, SIGO CON LA FALLA") -> VUELVE A PONERLO EN PENDIENTE EN LA SALA
+      if (actionType === 'rechazar_usuario') {
+        // Elimina la tarjeta de confirmación del usuario
+        if (data.messageId) {
+          await fetch(`https://webexapis.com/v1/messages/${data.messageId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${WEBEX_TOKEN}` }
+          }).catch(() => {});
+        }
+
+        // Mensaje privado al usuario
+        await fetch('https://webexapis.com/v1/messages', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${WEBEX_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            toPersonEmail: usuarioReporta,
+            markdown: `⚠️ **Ticket #${folio} Reabierto**\n\nHemos notificado al área de soporte que la falla persiste.`
+          })
+        }).catch(() => {});
+
+        // Reabrir la tarjeta en el Espacio de Soporte con botón para volver a tomarlo
+        await fetch('https://webexapis.com/v1/messages', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${WEBEX_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            roomId: ESPACIO_SOPORTE_ID,
+            markdown: `⚠️ Ticket #${folio} REABIERTO por el usuario`,
+            attachments: [
+              {
+                contentType: 'application/vnd.microsoft.card.adaptive',
+                content: {
+                  $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+                  type: 'AdaptiveCard',
+                  version: '1.2',
+                  body: [
+                    { type: 'TextBlock', text: `⚠️ Ticket #${folio} Reabierto`, weight: 'Bolder', size: 'Medium', color: 'Attention' },
+                    { type: 'TextBlock', text: `**USUARIO:** ${usuarioReporta}` },
+                    { type: 'TextBlock', text: `**FALLA REPORTADA:** ${fallaReportada}` },
+                    { type: 'TextBlock', text: `*El usuario indicó que NO se resolvió el problema.*` },
+                    { type: 'Input.Text', id: 'inputDiagnostico', placeholder: 'Escribe el nuevo diagnóstico...', isMultiline: true }
+                  ],
+                  actions: [
+                    {
+                      type: 'Action.Submit',
+                      title: '🙋‍♂️ Retomar Ticket',
+                      data: {
+                        action: 'tomar_ticket',
+                        folio: folio,
+                        usuarioReporta: usuarioReporta,
+                        fallaReportada: fallaReportada
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          })
+        });
+
+        if (GOOGLE_SHEET_URL) {
+          await fetch(GOOGLE_SHEET_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'rechazar_usuario',
+              folio: folio,
+              fecha: fechaAccion
             })
           }).catch(() => {});
         }
