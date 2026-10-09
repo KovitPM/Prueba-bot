@@ -251,8 +251,12 @@ export default async function handler(req, res) {
                     version: '1.2',
                     body: [
                       { type: 'TextBlock', text: `❓ Confirmación de Ticket #${folio}`, weight: 'Bolder', size: 'Medium' },
-                      { type: 'TextBlock', text: `El técnico **${tecnicoEmail}** indicó la siguiente solución:\n\n*${textoCorreccion}*` },
-                      { type: 'TextBlock', text: '¿Confirmas que el problema quedó resuelto?' }
+                      { 
+                        type: 'TextBlock', 
+                        text: `El técnico **${tecnicoEmail}** indicó la siguiente solución:\n\n*${textoCorreccion}*`,
+                        wrap: true 
+                      },
+                      { type: 'TextBlock', text: '¿Confirmas que el problema quedó resuelto?', wrap: true }
                     ],
                     actions: [
                       {
