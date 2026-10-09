@@ -77,16 +77,20 @@ export default async function handler(req, res) {
 
     // 2. EVENTO: Un técnico presionó "Tomar Ticket"
     if (resource === 'attachmentActions' && event === 'created') {
+      // Obtener detalles de la acción para extraer personId
       const actionRes = await fetch(`https://webexapis.com/v1/attachment/actions/${data.id}`, {
         headers: { Authorization: `Bearer ${WEBEX_TOKEN}` }
       });
       const actionData = await actionRes.json();
 
       const usuarioReporta = actionData.inputs?.usuarioReporta || 'Usuario';
-      // Webex envía el email del técnico directamente en la acción si está disponible
-      const tecnicoEmail = actionData.personEmail || 'Un técnico';
+      
+      // Consultar el correo del técnico usando su personId
+      const tecnicoEmail = actionData.personId 
+        ? await getEmailPersona(actionData.personId, WEBEX_TOKEN) 
+        : 'Un técnico';
 
-      // 1. Eliminar la tarjeta inicial con el botón
+      // 1. Eliminar la tarjeta previa
       if (data.messageId) {
         await fetch(`https://webexapis.com/v1/messages/${data.messageId}`, {
           method: 'DELETE',
@@ -94,7 +98,7 @@ export default async function handler(req, res) {
         }).catch(() => {});
       }
 
-      // 2. Publicar la tarjeta de asignación confirmada (incluye campo markdown obligatorio)
+      // 2. Publicar la tarjeta de asignación con el correo real del técnico
       await fetch('https://webexapis.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -142,5 +146,18 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Error procesando webhook:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+// Función para obtener el email o nombre mostrado a través de la API de personas de Webex
+async function getEmailPersona(personId, token) {
+  try {
+    const res = await fetch(`https://webexapis.com/v1/people/${personId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    return data.emails?.[0] || data.displayName || 'Un técnico';
+  } catch {
+    return 'Un técnico';
   }
 }
