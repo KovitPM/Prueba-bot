@@ -306,25 +306,24 @@ export default async function handler(req, res) {
 
       // CASO C: EL USUARIO CONFIRMA ("SÍ, QUEDÓ RESUELTO")
       if (actionType === 'confirmar_usuario') {
-        // Elimina la tarjeta de confirmación enviada al usuario
         if (data.messageId) {
           await fetch(`https://webexapis.com/v1/messages/${data.messageId}`, {
             method: 'DELETE',
             headers: { Authorization: `Bearer ${WEBEX_TOKEN}` }
           }).catch(() => {});
         }
-
-        // Mensaje privado final al usuario
+      
+        // Notificación privada final al usuario
         await fetch('https://webexapis.com/v1/messages', {
           method: 'POST',
           headers: { Authorization: `Bearer ${WEBEX_TOKEN}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             toPersonEmail: usuarioReporta,
-            markdown: `🎉 **Ticket #${folio} Resuelto**\n\nGracias por confirmar. El ticket ha sido cerrado con éxito.`
+            markdown: `🎉 **Ticket #${folio} Resuelto Definitivamente**\n\nGracias por confirmar. El ticket ha sido cerrado con éxito.`
           })
         }).catch(() => {});
-
-        // Actualizar tarjeta en el Espacio de Soporte a VERDE (Resuelto y Confirmado)
+      
+        // Actualizar tarjeta en el Espacio de Soporte
         await fetch('https://webexapis.com/v1/messages', {
           method: 'POST',
           headers: { Authorization: `Bearer ${WEBEX_TOKEN}`, 'Content-Type': 'application/json' },
@@ -348,7 +347,8 @@ export default async function handler(req, res) {
             ]
           })
         });
-
+      
+        // Guardar en Google Sheets incluyendo la propiedad 'usuario'
         if (GOOGLE_SHEET_URL) {
           await fetch(GOOGLE_SHEET_URL, {
             method: 'POST',
@@ -356,6 +356,7 @@ export default async function handler(req, res) {
             body: JSON.stringify({
               action: 'confirmar_usuario',
               folio: folio,
+              usuario: usuarioReporta, // <-- Esta propiedad faltaba
               fecha: fechaAccion
             })
           }).catch(() => {});
