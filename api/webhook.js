@@ -147,7 +147,7 @@ export default async function handler(req, res) {
           },
           body: JSON.stringify({
             toPersonEmail: usuarioReporta,
-            markdown: `🙋‍♂️ **Levanta tu ticket en\n http://wfweb.labotec.com.mx/wfweb/login.jsp;jsessionid=B8E30334AE0C4EC2C287F94347EAFA68**\n\nEl técnico **${tecnicoEmail}** atenderá tu caso y se pondrá en contacto contigo a la brevedad.`
+            markdown: `El técnico **${tecnicoEmail}** atenderá tu caso y se pondrá en contacto contigo a la brevedad.\n\n🙋‍♂️ **Levanta tu ticket en\n http://wfweb.labotec.com.mx/wfweb/login.jsp;jsessionid=B8E30334AE0C4EC2C287F94347EAFA68**`
           })
         }).catch((err) => console.error('Error enviando mensaje privado al usuario:', err));
       }
